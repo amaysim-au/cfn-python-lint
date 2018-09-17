@@ -57,7 +57,8 @@ def decode(filename, ignore_bad_template):
     except ScannerError as err:
         if err.problem == 'found character \'\\t\' that cannot start any token':
             try:
-                template = json.load(open(filename), cls=cfnlint.decode.cfn_json.CfnJSONDecoder)
+                with open(filename) as fp:
+                    template = json.load(fp, cls=cfnlint.decode.cfn_json.CfnJSONDecoder)
             except cfnlint.decode.cfn_json.JSONDecodeError as json_err:
                 json_err.match.filename = filename
                 matches = [json_err.match]
@@ -74,6 +75,9 @@ def decode(filename, ignore_bad_template):
         else:
             matches = [create_match_yaml_parser_error(err, filename)]
 
+    if not isinstance(template, dict) and not matches:
+        # Template isn't a dict which means nearly nothing will work
+        matches = [cfnlint.Match(1, 1, 1, 1, filename, cfnlint.ParseError(), message='Template needs to be an object.')]
     return (template, matches)
 
 

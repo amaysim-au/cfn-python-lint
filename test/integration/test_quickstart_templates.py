@@ -36,6 +36,10 @@ class TestQuickStartTemplates(BaseTestCase):
                 "filename": 'fixtures/templates/public/lambda-poller.yaml',
                 "failures": 0
             },
+            'watchmaker': {
+                "filename": 'fixtures/templates/public/watchmaker.json',
+                "failures": 0
+            },
             'nist_high_master': {
                 'filename': 'fixtures/templates/quickstart/nist_high_master.yaml',
                 'results_filename': 'fixtures/results/quickstart/nist_high_master.json'
@@ -87,7 +91,7 @@ class TestQuickStartTemplates(BaseTestCase):
             template = cfnlint.decode.cfn_yaml.load(filename)
 
             runner = Runner(self.rules, filename, template, ['us-east-1'])
-            matches = list()
+            matches = []
             matches.extend(runner.transform())
             if not matches:
                 matches.extend(runner.run())
@@ -104,6 +108,6 @@ class TestQuickStartTemplates(BaseTestCase):
                                 c['Location']['Start']['ColumnNumber'] == match.columnnumber and \
                                 c['Rule']['Id'] == match.rule.id:
                             matched = True
-                    assert matched is True, 'Expected error {} at line {}, column {} in matches'.format(c['Rule']['Id'], c['Location']['Start']['LineNumber'], c['Location']['Start']['ColumnNumber'])
+                    assert matched is True, 'Expected error {} at line {}, column {} in matches for {}'.format(c['Rule']['Id'], c['Location']['Start']['LineNumber'], c['Location']['Start']['ColumnNumber'], filename)
             else:
                 assert len(matches) == failures, 'Expected {} failures, got {} on {}'.format(failures, len(matches), filename)

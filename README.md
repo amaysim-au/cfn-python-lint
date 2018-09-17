@@ -19,23 +19,24 @@ before the linter processes the template.
 
 
 ## Install
-### Command line
-From a command prompt run `python setup.py clean --all` then `python setup.py install`
+
+Python 2.7+ and 3.4+ are supported.
 
 ### Pip Install
-`pip install cfn-lint`.  You may need to use sudo.
 
-## Uninstall
-If you have pip installed you can uninstall using `pip uninstall cfn-lint`.  You
-may need to manually remove the cfn-lint binary.
+`pip install cfn-lint`. If pip is not available, run
+`python setup.py clean --all` then `python setup.py install`.
 
 ### Editor Plugins
 There are IDE plugins available to get direct linter feedback from you favorite editor:
 
 * [Atom](https://atom.io/packages/atom-cfn-lint)
-* [NeoVim 0.2.0+/Vim 8](https://github.com/w0rp/ale#supported-languages)
+* NeoVim 0.2.0+/Vim 8
+  * [ALE](https://github.com/w0rp/ale#supported-languages)
+  * [Syntastic](https://github.com/speshak/vim-cfn)
 * [Sublime](https://packagecontrol.io/packages/SublimeLinter-contrib-cloudformation)
 * [Visual Studio Code](https://marketplace.visualstudio.com/items?itemName=kddejong.vscode-cfn-lint)
+* [IntelliJ IDEA](https://plugins.jetbrains.com/plugin/10973-cfn-lint/update/48247)
 
 ## Configuration
 

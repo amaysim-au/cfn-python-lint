@@ -25,7 +25,8 @@ class TestResourceProperties(BaseRuleTestCase):
         super(TestResourceProperties, self).setUp()
         self.collection.register(Properties())
         self.success_templates = [
-            'fixtures/templates/good/resource_properties.yaml'
+            'fixtures/templates/good/resource_properties.yaml',
+            'fixtures/templates/good/resources/properties/templated_code.yaml',
         ]
 
     def test_file_positive(self):

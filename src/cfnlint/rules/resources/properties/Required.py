@@ -25,7 +25,7 @@ class Required(CloudFormationLintRule):
     shortdesc = 'Required Resource Parameters are missing'
     description = 'Making sure that Resources properties ' + \
                   'that are required exist'
-    source_url = 'https://github.com/awslabs/cfn-python-lint'
+    source_url = 'https://github.com/awslabs/cfn-python-lint/blob/master/docs/cfn-resource-specification.md#required'
     tags = ['resources']
 
     cfn = {}
@@ -38,7 +38,7 @@ class Required(CloudFormationLintRule):
     def propertycheck(self, text, proptype, parenttype, resourcename, tree, root):
         """Check individual properties"""
 
-        matches = list()
+        matches = []
         if root:
             specs = self.resourcetypes
             resourcetype = parenttype
@@ -60,7 +60,7 @@ class Required(CloudFormationLintRule):
             return matches
 
         # Check if all required properties are specified
-        resource_objects = list()
+        resource_objects = []
         base_object_properties = {}
         for key, value in text.items():
             if key not in cfnlint.helpers.CONDITION_FUNCTIONS:
@@ -93,8 +93,8 @@ class Required(CloudFormationLintRule):
             for prop in resourcespec:
                 if resourcespec[prop]['Required']:
                     if prop not in value:
-                        message = 'Property {0} missing from resource {1}'
-                        matches.append(RuleMatch(path, message.format(prop, resourcename)))
+                        message = 'Property {0} missing at {1}'
+                        matches.append(RuleMatch(path, message.format(prop, '/'.join(map(str, path)))))
 
             # For all specified properties, check all nested properties
             for prop in value:
@@ -121,13 +121,15 @@ class Required(CloudFormationLintRule):
 
     def match(self, cfn):
         """Check CloudFormation Properties"""
-        matches = list()
+        matches = []
 
         self.cfn = cfn
 
         for resourcename, resourcevalue in cfn.get_resources().items():
             if 'Properties' in resourcevalue and 'Type' in resourcevalue:
                 resourcetype = resourcevalue['Type']
+                if resourcetype.startswith('Custom::'):
+                    resourcetype = 'AWS::CloudFormation::CustomResource'
                 if resourcetype in self.resourcetypes:
                     tree = ['Resources', resourcename, 'Properties']
                     matches.extend(self.propertycheck(

@@ -14,6 +14,7 @@
   OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
   SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """
+import six
 from cfnlint import CloudFormationLintRule
 from cfnlint import RuleMatch
 import cfnlint.helpers
@@ -25,7 +26,7 @@ class Properties(CloudFormationLintRule):
     shortdesc = 'Resource properties are valid'
     description = 'Making sure that resources properties ' + \
                   'are properly configured'
-    source_url = 'https://github.com/awslabs/cfn-python-lint'
+    source_url = 'https://github.com/awslabs/cfn-python-lint/blob/master/docs/cfn-resource-specification.md#properties'
     tags = ['resources']
 
     def __init__(self):
@@ -45,7 +46,7 @@ class Properties(CloudFormationLintRule):
 
         """
 
-        matches = list()
+        matches = []
         if isinstance(value, dict) and primtype == 'Json':
             return matches
         if isinstance(value, dict):
@@ -76,7 +77,7 @@ class Properties(CloudFormationLintRule):
 
     def check_list_for_condition(self, text, prop, parenttype, resourcename, propspec, path):
         """Checks lists that are a dict for conditions"""
-        matches = list()
+        matches = []
         if len(text[prop]) == 1:
             for sub_key, sub_value in text[prop].items():
                 if sub_key in cfnlint.helpers.CONDITION_FUNCTIONS:
@@ -123,11 +124,29 @@ class Properties(CloudFormationLintRule):
 
         return matches
 
+    def check_exceptions(self, parenttype, proptype, text):
+        """
+            Checks for exceptions to the spec
+            - Start with handling exceptions for templated code.
+        """
+        templated_exceptions = {
+            'AWS::ApiGateway::RestApi': ['BodyS3Location'],
+            'AWS::Lambda::Function': ['Code'],
+            'AWS::ElasticBeanstalk::ApplicationVersion': ['SourceBundle'],
+        }
+
+        exceptions = templated_exceptions.get(parenttype, [])
+        if proptype in exceptions:
+            if isinstance(text, six.string_types):
+                return True
+
+        return False
+
     def propertycheck(self, text, proptype, parenttype, resourcename, path, root):
         """Check individual properties"""
 
         parameternames = self.parameternames
-        matches = list()
+        matches = []
         if root:
             specs = self.resourcetypes
             resourcetype = parenttype
@@ -144,12 +163,16 @@ class Properties(CloudFormationLintRule):
                 resourcetype = str.format('{0}.{1}', parenttype, proptype)
 
         resourcespec = specs[resourcetype].get('Properties', {})
+        supports_additional_properties = specs[resourcetype].get('AdditionalProperties', False)
+
         if text == 'AWS::NoValue':
             return matches
         if not isinstance(text, dict):
-            message = 'Expecting an object at %s' % ('/'.join(map(str, path)))
-            matches.append(RuleMatch(path, message))
+            if not self.check_exceptions(parenttype, proptype, text):
+                message = 'Expecting an object at %s' % ('/'.join(map(str, path)))
+                matches.append(RuleMatch(path, message))
             return matches
+
         for prop in text:
             proppath = path[:]
             proppath.append(prop)
@@ -160,7 +183,7 @@ class Properties(CloudFormationLintRule):
                         matches.extend(self.propertycheck(
                             cond_value['Value'], proptype, parenttype, resourcename,
                             proppath + cond_value['Path'], root))
-                elif prop != 'Metadata':
+                elif prop != 'Metadata' and not supports_additional_properties:
                     message = 'Invalid Property %s' % ('/'.join(map(str, proppath)))
                     matches.append(RuleMatch(proppath, message))
             else:
@@ -197,8 +220,9 @@ class Properties(CloudFormationLintRule):
                                 if 'Ref' in text[prop]:
                                     ref = text[prop]['Ref']
                                     if ref in parameternames:
-                                        if 'Type' in self.cfn.template['Parameters'][ref]:
-                                            if not self.cfn.template['Parameters'][ref]['Type'].startswith('List<'):
+                                        param_type = self.cfn.template['Parameters'][ref]['Type']
+                                        if param_type:
+                                            if not param_type.startswith('List<') and not param_type == 'CommaDelimitedList':
                                                 message = 'Property {0} should be of type List or Parameter should ' \
                                                           'be a list for resource {1}'
                                                 matches.append(
@@ -230,7 +254,7 @@ class Properties(CloudFormationLintRule):
 
     def match(self, cfn):
         """Check CloudFormation Properties"""
-        matches = list()
+        matches = []
         self.cfn = cfn
 
         resourcespecs = cfnlint.helpers.RESOURCE_SPECS[cfn.regions[0]]
@@ -240,6 +264,8 @@ class Properties(CloudFormationLintRule):
         for resourcename, resourcevalue in cfn.get_resources().items():
             if 'Properties' in resourcevalue and 'Type' in resourcevalue:
                 resourcetype = resourcevalue.get('Type', None)
+                if resourcetype.startswith('Custom::'):
+                    resourcetype = 'AWS::CloudFormation::CustomResource'
                 if resourcetype in self.resourcetypes:
                     path = ['Resources', resourcename, 'Properties']
                     matches.extend(self.propertycheck(

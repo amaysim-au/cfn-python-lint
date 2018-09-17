@@ -31,7 +31,7 @@ class Cidr(CloudFormationLintRule):
 
     def check_parameter_count(self, cfn, parameter_name):
         """Check Count Parameter if used"""
-        matches = list()
+        matches = []
         parameter_obj = cfn.get_parameters().get(parameter_name, {})
         if parameter_obj:
             tree = ['Parameters', parameter_name]
@@ -56,7 +56,7 @@ class Cidr(CloudFormationLintRule):
 
     def check_parameter_size_mask(self, cfn, parameter_name):
         """Check SizeMask Parameter if used"""
-        matches = list()
+        matches = []
         parameter_obj = cfn.get_parameters().get(parameter_name, {})
         if parameter_obj:
             tree = ['Parameters', parameter_name]
@@ -84,13 +84,14 @@ class Cidr(CloudFormationLintRule):
     def match(self, cfn):
         """Check CloudFormation Cidr"""
 
-        matches = list()
+        matches = []
 
         cidr_objs = cfn.search_deep_keys('Fn::Cidr')
 
         supported_functions = [
             'Fn::Select',
             'Ref',
+            'Fn::GetAtt',
             'Fn::ImportValue'
         ]
 
@@ -113,7 +114,7 @@ class Cidr(CloudFormationLintRule):
                         if len(ip_block_obj) == 1:
                             for index_key, _ in ip_block_obj.items():
                                 if index_key not in supported_functions:
-                                    message = 'Cidr ipBlock should be Cidr Range, Ref, or Select for {0}'
+                                    message = 'Cidr ipBlock should be Cidr Range, Ref, GetAtt, or Select for {0}'
                                     matches.append(RuleMatch(
                                         tree[:] + [0], message.format('/'.join(map(str, tree[:] + [0])))))
                     elif isinstance(ip_block_obj, (six.text_type, six.string_types)):

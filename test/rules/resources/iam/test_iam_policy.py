@@ -24,6 +24,10 @@ class TestPropertyIamPolicies(BaseRuleTestCase):
         """Setup"""
         super(TestPropertyIamPolicies, self).setUp()
         self.collection.register(Policy())
+        self.success_templates = [
+            'fixtures/templates/good/resources/iam/policy.yaml',
+            'fixtures/templates/good/resources/iam/resource_policy.yaml',
+        ]
 
     def test_file_positive(self):
         """Test Positive"""
@@ -31,4 +35,8 @@ class TestPropertyIamPolicies(BaseRuleTestCase):
 
     def test_file_negative(self):
         """Test failure"""
-        self.helper_file_negative('fixtures/templates/bad/properties_iam_policy.yaml', 6)
+        self.helper_file_negative('fixtures/templates/bad/properties_iam_policy.yaml', 8)
+
+    def test_file_resource_negative(self):
+        """Test failure"""
+        self.helper_file_negative('fixtures/templates/bad/resources/iam/resource_policy.yaml', 4)

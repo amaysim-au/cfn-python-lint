@@ -1,0 +1,52 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+Parameters:
+  myExampleBucket:
+    Type: String
+Resources:
+  Ecr:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryPolicyText:
+        {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "CodeBuildAccess",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "codebuild.amazonaws.com"
+              },
+              "Action": [
+                "ecr:GetDownloadUrlForLayer",
+                "ecr:BatchGetImage",
+                "ecr:BatchCheckLayerAvailability"
+              ]
+            }
+          ]
+        }
+  SampleBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket:
+        Ref: "myExampleBucket"
+      PolicyDocument:
+        Statement:
+          -
+            Action:
+              - "s3:GetObject"
+            Effect: "Allow"
+            Resource:
+              Fn::Join:
+                - ""
+                -
+                  - "arn:aws:s3:::"
+                  -
+                    Ref: "myExampleBucket"
+                  - "/*"
+            Principal: "*"
+            Condition:
+              StringLike:
+                aws:Referer:
+                  - "http://www.example.com/*"
+                  - "http://example.com/*"

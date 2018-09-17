@@ -14,6 +14,7 @@
   OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
   SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """
+import six
 from cfnlint import CloudFormationLintRule
 from cfnlint import RuleMatch
 
@@ -27,41 +28,47 @@ HTTPS has certificate HTTP has no certificate'
     source_url = 'https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-elb-listener.html'
     tags = ['properties', 'elb']
 
+    def check_protocol_value(self, value, path, **kwargs):
+        """
+            Check Protocol Value
+        """
+        matches = []
+        if isinstance(value, six.string_types):
+            if value.upper() not in kwargs['accepted_protocols']:
+                message = 'Protocol must be {0} is invalid at {1}'
+                matches.append(RuleMatch(path, message.format((', '.join(kwargs['accepted_protocols'])), ('/'.join(map(str, path))))))
+            elif value.upper() in kwargs['certificate_protocols']:
+                if not kwargs['certificates']:
+                    message = 'Certificates should be specified when using HTTPS for {0}'
+                    matches.append(RuleMatch(path, message.format(('/'.join(map(str, path))))))
+
+        return matches
+
     def match(self, cfn):
         """Check ELB Resource Parameters"""
 
-        matches = list()
+        matches = []
 
         results = cfn.get_resource_properties(['AWS::ElasticLoadBalancingV2::Listener'])
         for result in results:
-            protocol = result['Value'].get('Protocol')
-            if protocol:
-                if protocol not in ['HTTP', 'HTTPS', 'TCP']:
-                    message = 'Protocol is invalid for {0}'
-                    path = result['Path'] + ['Protocol']
-                    matches.append(RuleMatch(path, message.format(('/'.join(result['Path'])))))
-                elif protocol in ['HTTPS']:
-                    certificate = result['Value'].get('Certificates')
-                    if not certificate:
-                        message = 'Certificates should be specified when using HTTPS for {0}'
-                        path = result['Path'] + ['Protocol']
-                        matches.append(RuleMatch(path, message.format(('/'.join(result['Path'])))))
+            matches.extend(
+                cfn.check_value(
+                    result['Value'], 'Protocol', result['Path'],
+                    check_value=self.check_protocol_value,
+                    accepted_protocols=['HTTP', 'HTTPS', 'TCP'],
+                    certificate_protocols=['HTTPS'],
+                    certificates=result['Value'].get('Certificates')))
 
         results = cfn.get_resource_properties(['AWS::ElasticLoadBalancing::LoadBalancer', 'Listeners'])
         for result in results:
             if isinstance(result['Value'], list):
                 for index, listener in enumerate(result['Value']):
-                    protocol = listener.get('Protocol')
-                    if protocol:
-                        if protocol not in ['HTTP', 'HTTPS', 'TCP', 'SSL']:
-                            message = 'Protocol is invalid for {0}'
-                            path = result['Path'] + [index, 'Protocol']
-                            matches.append(RuleMatch(path, message.format(('/'.join(result['Path'])))))
-                        elif protocol in ['HTTPS', 'SSL']:
-                            certificate = listener.get('SSLCertificateId')
-                            if not certificate:
-                                message = 'Certificates should be specified when using HTTPS for {0}'
-                                path = result['Path'] + [index, 'Protocol']
-                                matches.append(RuleMatch(path, message.format(('/'.join(result['Path'])))))
+                    matches.extend(
+                        cfn.check_value(
+                            listener, 'Protocol', result['Path'] + [index],
+                            check_value=self.check_protocol_value,
+                            accepted_protocols=['HTTP', 'HTTPS', 'TCP', 'SSL'],
+                            certificate_protocols=['HTTPS', 'SSL'],
+                            certificates=listener.get('SSLCertificateId')))
 
         return matches

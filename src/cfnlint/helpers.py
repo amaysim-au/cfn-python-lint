@@ -21,6 +21,7 @@ import os
 import imp
 import logging
 import re
+import inspect
 import pkg_resources
 
 
@@ -38,6 +39,11 @@ REGIONS = ['us-east-1', 'us-east-2', 'us-west-1', 'us-west-2', 'ca-central-1',
 REGEX_ALPHANUMERIC = re.compile('^[a-zA-Z0-9]*$')
 REGEX_CIDR = re.compile(r'^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/([0-9]|[1-2][0-9]|3[0-2]))$')
 REGEX_IPV4 = re.compile(r'^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)){3}$')
+REGEX_IPV6 = re.compile(r'^(((?=.*(::))(?!.*\3.+\3))\3?|[\dA-F]{1,4}:)([\dA-F]{1,4}(\3|:\b)|\2){5}(([\dA-F]{1,4}(\3|:\b|$)|\2){2}|(((2[0-4]|1\d|[1-9])?\d|25[0-5])\.?\b){4})\Z', re.I | re.S)
+REGEX_DYN_REF = re.compile(r'^.*{{resolve:.+}}.*$')
+REGEX_DYN_REF_SSM = re.compile(r'^.*{{resolve:ssm:[a-zA-Z0-9_\.\-/]+:\d+}}.*$')
+REGEX_DYN_REF_SSM_SECURE = re.compile(r'^.*{{resolve:ssm-secure:[a-zA-Z0-9_\.\-/]+:\d+}}.*$')
+
 
 AVAILABILITY_ZONES = [
     'us-east-1a', 'us-east-1b', 'us-east-1c', 'us-east-1d', 'us-east-1e', 'us-east-1f',
@@ -73,7 +79,8 @@ LIMITS = {
     },
     'outputs': {
         'number': 60,
-        'name': 255  # in characters
+        'name': 255,  # in characters
+        'description': 1024  # in bytes
     },
     'parameters': {
         'number': 60,
@@ -99,9 +106,8 @@ def load_resources(filename='/data/CloudSpecs/us-east-1.json'):
         filename
     )
 
-    data = json.load(open(filename))
-
-    return data
+    with open(filename) as fp:
+        return json.load(fp)
 
 
 RESOURCE_SPECS = {}
@@ -188,8 +194,12 @@ def load_plugins(directory):
             try:
                 fh, filename, desc = imp.find_module(pluginname, [root])
                 mod = imp.load_module(pluginname, fh, filename, desc)
-                obj = getattr(mod, pluginname)()
-                result.append(obj)
+                for _, clazz in inspect.getmembers(mod, inspect.isclass):
+                    method_resolution = inspect.getmro(clazz)
+                    if [clz for clz in method_resolution[1:] if clz.__module__ == 'cfnlint' and clz.__name__ == 'CloudFormationLintRule']:
+                        # create and instance of subclasses of CloudFormationLintRule
+                        obj = clazz()
+                        result.append(obj)
             finally:
                 if fh:
                     fh.close()
@@ -200,7 +210,8 @@ def override_specs(override_spec_file):
     """Override specs file"""
     try:
         filename = override_spec_file
-        custom_spec_data = json.load(open(filename))
+        with open(filename) as fp:
+            custom_spec_data = json.load(fp)
 
         set_specs(custom_spec_data)
     except IOError as e:

@@ -17,10 +17,9 @@
 import logging
 import sys
 import os
-import json
 import argparse
 import six
-from cfnlint import RulesCollection, Match
+from cfnlint import RulesCollection
 import cfnlint.formatters
 import cfnlint.decode
 import cfnlint.maintenance
@@ -38,7 +37,7 @@ class ArgumentParser(argparse.ArgumentParser):
         self.exit(32, '%s: error: %s\n' % (self.prog, message))
 
 
-def run_cli(filename, template, rules, fmt, regions, override_spec, formatter):
+def run_cli(filename, template, rules, regions, override_spec, formatter):
     """Process args and run"""
 
     if override_spec:
@@ -46,7 +45,7 @@ def run_cli(filename, template, rules, fmt, regions, override_spec, formatter):
 
     matches = run_checks(filename, template, rules, regions)
 
-    print_matches(matches, fmt, formatter)
+    formatter.print_matches(matches)
 
     return get_exit_code(matches)
 
@@ -170,6 +169,8 @@ def get_formatter(fmt):
         elif fmt == 'parseable':
             # pylint: disable=bad-option-value
             formatter = cfnlint.formatters.ParseableFormatter()
+        elif fmt == 'json':
+            formatter = cfnlint.formatters.JsonFormatter()
     else:
         formatter = cfnlint.formatters.Formatter()
 
@@ -212,7 +213,7 @@ def get_template_args_rules(cli_args):
         (template, matches) = cfnlint.decode.decode(filename, args.ignore_bad_template)
 
         if matches:
-            print_matches(matches, fmt, formatter)
+            formatter.print_matches(matches)
             sys.exit(get_exit_code(matches))
 
     # If the template has cfn-lint Metadata but the same options are set on the command-
@@ -246,7 +247,7 @@ def get_template_args_rules(cli_args):
         parser.print_help()
         exit(1)
 
-    return(args, filename, template, rules, fmt, formatter)
+    return(args, filename, template, rules, formatter)
 
 
 def get_default_args(template):
@@ -255,23 +256,23 @@ def get_default_args(template):
     if isinstance(template, dict):
         configs = template.get('Metadata', {}).get('cfn-lint', {}).get('config', {})
 
-    if isinstance(configs, dict):
-        for config_name, config_value in configs.items():
-            if config_name == 'ignore_checks':
-                if isinstance(config_value, list):
-                    defaults['ignore_checks'] = config_value
-            if config_name == 'regions':
-                if isinstance(config_value, list):
-                    defaults['regions'] = config_value
-            if config_name == 'append_rules':
-                if isinstance(config_value, list):
-                    defaults['override_spec'] = config_value
-            if config_name == 'override_spec':
-                if isinstance(config_value, (six.string_types, six.text_type)):
-                    defaults['override_spec'] = config_value
-            if config_name == 'ignore_bad_template':
-                if isinstance(config_value, bool):
-                    defaults['ignore_bad_template'] = config_value
+        if isinstance(configs, dict):
+            for config_name, config_value in configs.items():
+                if config_name == 'ignore_checks':
+                    if isinstance(config_value, list):
+                        defaults['ignore_checks'] = config_value
+                if config_name == 'regions':
+                    if isinstance(config_value, list):
+                        defaults['regions'] = config_value
+                if config_name == 'append_rules':
+                    if isinstance(config_value, list):
+                        defaults['override_spec'] = config_value
+                if config_name == 'override_spec':
+                    if isinstance(config_value, (six.string_types, six.text_type)):
+                        defaults['override_spec'] = config_value
+                if config_name == 'ignore_bad_template':
+                    if isinstance(config_value, bool):
+                        defaults['ignore_bad_template'] = config_value
 
     return defaults
 
@@ -285,7 +286,7 @@ def run_checks(filename, template, rules, regions):
                 LOGGER.error('Supported regions are %s', REGIONS)
                 exit(32)
 
-    matches = list()
+    matches = []
 
     runner = cfnlint.Runner(rules, filename, template, regions)
     matches.extend(runner.transform())
@@ -299,46 +300,3 @@ def run_checks(filename, template, rules, regions):
     matches.sort(key=lambda x: (x.filename, x.linenumber, x.rule.id))
 
     return(matches)
-
-
-def print_matches(matches, fmt, formatter):
-    """Print matches"""
-    if fmt == 'json':
-        print(json.dumps(matches, indent=4, cls=CustomEncoder))
-    else:
-        for match in matches:
-            print(formatter.format(match))
-
-
-class CustomEncoder(json.JSONEncoder):
-    """Custom Encoding for the Match Object"""
-    # pylint: disable=E0202
-    def default(self, o):
-        if isinstance(o, Match):
-            if o.rule.id[0] == 'W':
-                level = 'Warning'
-            else:
-                level = 'Error'
-
-            return {
-                'Rule': {
-                    'Id': o.rule.id,
-                    'Description': o.rule.description,
-                    'ShortDescription': o.rule.shortdesc,
-                    'Source': o.rule.source_url
-                },
-                'Location': {
-                    'Start': {
-                        'ColumnNumber': o.columnnumber,
-                        'LineNumber': o.linenumber,
-                    },
-                    'End': {
-                        'ColumnNumber': o.columnnumberend,
-                        'LineNumber': o.linenumberend,
-                    }
-                },
-                'Level': level,
-                'Message': o.message,
-                'Filename': o.filename,
-            }
-        return {'__{}__'.format(o.__class__.__name__): o.__dict__}

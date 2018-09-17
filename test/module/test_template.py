@@ -44,9 +44,23 @@ class TestTemplate(BaseTestCase):
 
     def test_get_resources_success(self):
         """Test Success on Get Resources"""
-        valid_resource_count = 10
+        valid_resource_count = 11
         resources = self.template.get_resources()
         assert len(resources) == valid_resource_count, 'Expected {} resources, got {}'.format(valid_resource_count, len(resources))
+
+    def test_get_resources_bad(self):
+        """Don't get resources that aren't properly configured"""
+        template = {
+            'Resources': {
+                'Properties': {
+                    'BucketName': "bucket_test"
+                },
+                'Type': "AWS::S3::Bucket"
+            }
+        }
+        self.template = Template('test.yaml', template)
+        resources = self.template.get_resources()
+        assert resources == {}
 
     def test_get_resource_names(self):
         """ Test Resource Names"""
@@ -66,7 +80,7 @@ class TestTemplate(BaseTestCase):
 
     def test_get_valid_refs(self):
         """ Get Valid REFs"""
-        valid_ref_count = 25
+        valid_ref_count = 26
         refs = self.template.get_valid_refs()
         assert len(refs) == valid_ref_count, 'Expected {} refs, got {}'.format(valid_ref_count, len(refs))
 
